@@ -1,0 +1,96 @@
+-- total cases vs total deaths.
+-- shows likelihood of dying if you contract in your country – in this case, Canada.
+SELECT Location, date, total_deaths, total_cases, (total_deaths*100.0/total_cases) as DeathPercentage
+from COVIDPROJECT..CovidDeathss
+WHERE [location] like '%Canada%'
+order by 1,2 
+
+-- total cases vs population. 
+-- shows the total amount of cases, relative to total population size in Canada. 
+-- cool fact: first 1% of population reached on 2020, November 30th !
+SELECT Location, date, total_cases, population, (total_cases*100.0/population) as CovidCasePercentage
+from COVIDPROJECT..CovidDeathss
+WHERE [location] like '%Canada%'
+order by 1,2 
+
+-- looking at countries with highest infection rates, relative to population. 
+SELECT Location, MAX(total_cases) as HighestInfectionCount, MAX((total_cases*100.0/population)) as PercentPopulationInfected
+from COVIDPROJECT..CovidDeathss
+Group by Location, Population
+order by PercentPopulationInfected
+
+-- showcases countries with highest death count 
+SELECT Location, MAX(total_deaths) as TotalDeathCountCountries
+From COVIDPROJECT..CovidDeathss
+where continent is not NULL
+Group by Location
+ORDER BY TotalDeathCountCountries DESC
+
+
+-- showing continents with the highest death count
+SELECT continent, MAX(total_deaths) as TotalDeathCountContinents
+From COVIDPROJECT..CovidDeathss
+where continent is not NULL
+Group by continent
+ORDER BY TotalDeathCountContinents DESC
+
+
+-- global numbers of death percentage. 
+Select sum(new_cases) as TotalCases, sum(new_deaths) as TotalDeaths, (sum(new_deaths)*100.0)/sum(new_cases) as GlobalDeathPercentage
+From COVIDPROJECT..CovidDeathss
+where continent is not NULL 
+order by 1,2 
+
+--looking at total population vs vaccinations 
+with PopvsVac (continent, location, date, population, New_vaccinations, RollingPeopleVaccinated)
+as 
+(
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+, sum(vac.new_vaccinations) over (partition by dea.location order by dea.location, dea.date) as RollingPeopleVaccinated
+From COVIDPROJECT..CovidDeathss dea
+    JOIN COVIDPROJECT..CovidVaccinations vac
+on dea.location = vac.location
+and dea.date = vac.date
+where dea.continent is not null
+)
+Select *, ((RollingPeopleVaccinated*100.0)/Population)
+ from PopvsVac
+
+
+ -- Temp table
+Drop table if EXISTS #PercentPopulationVaccinated
+Create table #PercentPopulationVaccinated
+(
+continent  NVARCHAR(50), 
+Location NVARCHAR(50), 
+DATE date, 
+Population BIGINT, 
+New_vaccinations BIGINT, 
+RollingPeopleVaccinated FLOAT
+)
+Insert into #PercentPopulationVaccinated 
+Select dea.continent, dea.Location, dea.DATE, dea.Population, vac.New_vaccinations
+, sum(vac.New_vaccinations) over (partition by dea.Location order by dea.Location, 
+    dea.DATE) as RollingPeopleVaccinated
+From COVIDPROJECT..CovidDeathss dea
+JOIN COVIDPROJECT..CovidVaccinations vac
+    on dea.Location = vac.Location 
+    and dea.DATE = vac.DATE
+where dea.continent is not null
+
+Select *, ((RollingPeopleVaccinated *100.0)/Population)
+From #PercentPopulationVaccinated
+
+-- for visualization application in the near future ;) 
+create view PercentPopulationVaccinated as 
+Select dea.continent, dea.Location, dea.DATE, dea.Population, vac.New_vaccinations
+, sum(vac.New_vaccinations) over (partition by dea.Location order by dea.Location, 
+    dea.DATE) as RollingPeopleVaccinated
+From COVIDPROJECT..CovidDeathss dea
+JOIN COVIDPROJECT..CovidVaccinations vac
+    on dea.Location = vac.Location 
+    and dea.DATE = vac.DATE
+where dea.continent is not null
+
+Select *
+From PercentPopulationVaccinated
